@@ -52,6 +52,30 @@ def get_env_state(repo_root="."):
         else:
             env_state["R_env_manager"] = "No renv.lock found"
             
+    # Detect Rust Environment
+    if (root_path / "Cargo.toml").exists() or list(root_path.glob("**/*.rs")):
+        try:
+            env_state["Rust_version"] = subprocess.check_output(["rustc", "--version"], stderr=subprocess.STDOUT).decode("utf-8").strip()
+            env_state["Cargo_version"] = subprocess.check_output(["cargo", "--version"], stderr=subprocess.STDOUT).decode("utf-8").strip()
+        except Exception:
+            env_state["Rust_version"] = "rustc/cargo not found in PATH"
+            
+    # Detect C/C++ Environment
+    if (root_path / "CMakeLists.txt").exists() or list(root_path.glob("**/*.cpp")) or list(root_path.glob("**/*.c")):
+        try:
+            env_state["CMake_version"] = subprocess.check_output(["cmake", "--version"], stderr=subprocess.STDOUT).decode("utf-8").splitlines()[0]
+        except Exception:
+            pass
+        try:
+            # Try gcc
+            env_state["C++_compiler"] = subprocess.check_output(["g++", "--version"], stderr=subprocess.STDOUT).decode("utf-8").splitlines()[0]
+        except Exception:
+            try:
+                # Fallback to clang
+                env_state["C++_compiler"] = subprocess.check_output(["clang++", "--version"], stderr=subprocess.STDOUT).decode("utf-8").splitlines()[0]
+            except Exception:
+                pass
+            
     return env_state
 
 # --- Linter functionality ---
@@ -264,14 +288,32 @@ def run_pre_commit(target_dir=None):
         
         f.write("## Environment Snapshot\n")
         f.write(f"- OS: {env_state['os']}\n")
+        
+        has_specific_env = False
         if "R_version" in env_state:
+            has_specific_env = True
             f.write(f"- R Version: {env_state['R_version']}\n")
             f.write(f"- R Environment: {env_state.get('R_env_manager', 'Unknown')}\n")
             f.write("\n<details><summary>R sessionInfo()</summary>\n\n```text\n")
             f.write(env_state.get('R_session_info', ''))
             f.write("\n```\n</details>\n")
-        else:
-            f.write(f"- Python: {env_state['python_version']}\n")
+            
+        if "Rust_version" in env_state:
+            has_specific_env = True
+            f.write(f"- Rust Version: {env_state['Rust_version']}\n")
+            if "Cargo_version" in env_state:
+                f.write(f"- Cargo Version: {env_state['Cargo_version']}\n")
+                
+        if "C++_compiler" in env_state or "CMake_version" in env_state:
+            has_specific_env = True
+            if "C++_compiler" in env_state:
+                f.write(f"- C++ Compiler: {env_state['C++_compiler']}\n")
+            if "CMake_version" in env_state:
+                f.write(f"- CMake Version: {env_state['CMake_version']}\n")
+                
+        if not has_specific_env:
+            # Fallback to python if no other primary languages are detected
+            f.write(f"- Python: {env_state.get('python_version', 'Unknown')}\n")
         
     print(f"Audit log generated at {report_path}")
     
