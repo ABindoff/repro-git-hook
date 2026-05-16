@@ -11,7 +11,7 @@ from pathlib import Path
 
 # --- Logger functionality ---
 
-def get_env_state():
+def get_env_state(repo_root="."):
     """Captures the current environment state for reproducibility."""
     env_state = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -20,7 +20,7 @@ def get_env_state():
     }
     
     try:
-        git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL)
+        git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_root, stderr=subprocess.DEVNULL)
         env_state["git_commit"] = git_hash.decode("utf-8").strip()
     except Exception:
         env_state["git_commit"] = "Not a git repository"
@@ -31,6 +31,27 @@ def get_env_state():
     except Exception:
         env_state["pip_freeze"] = []
         
+    # Detect R Environment
+    root_path = Path(repo_root)
+    # Check for R files in root or immediately obvious signs of an R project
+    if list(root_path.glob("*.Rproj")) or list(root_path.glob("*.R")) or list(root_path.glob("*.Rmd")):
+        try:
+            r_version = subprocess.check_output(["Rscript", "--version"], stderr=subprocess.STDOUT).decode("utf-8").strip()
+            env_state["R_version"] = r_version
+        except Exception:
+            env_state["R_version"] = "Rscript not found in PATH"
+            
+        try:
+            r_session = subprocess.check_output(["Rscript", "-e", "sessionInfo()"], cwd=repo_root, stderr=subprocess.DEVNULL).decode("utf-8").strip()
+            env_state["R_session_info"] = r_session
+        except Exception:
+            env_state["R_session_info"] = "Could not capture sessionInfo()"
+            
+        if (root_path / "renv.lock").exists():
+            env_state["R_env_manager"] = "renv.lock present"
+        else:
+            env_state["R_env_manager"] = "No renv.lock found"
+            
     return env_state
 
 # --- Linter functionality ---
@@ -208,7 +229,7 @@ def run_pre_commit(target_dir=None):
         
     print(f"Scanning directory: {repo_root}")
     issues = lint_directory(repo_root)
-    env_state = get_env_state()
+    env_state = get_env_state(repo_root)
     ai_log_snippet, is_raw_text = get_latest_ai_log(repo_root)
     
     # Generate the Markdown Report
@@ -243,7 +264,14 @@ def run_pre_commit(target_dir=None):
         
         f.write("## Environment Snapshot\n")
         f.write(f"- OS: {env_state['os']}\n")
-        f.write(f"- Python: {env_state['python_version']}\n")
+        if "R_version" in env_state:
+            f.write(f"- R Version: {env_state['R_version']}\n")
+            f.write(f"- R Environment: {env_state.get('R_env_manager', 'Unknown')}\n")
+            f.write("\n<details><summary>R sessionInfo()</summary>\n\n```text\n")
+            f.write(env_state.get('R_session_info', ''))
+            f.write("\n```\n</details>\n")
+        else:
+            f.write(f"- Python: {env_state['python_version']}\n")
         
     print(f"Audit log generated at {report_path}")
     
