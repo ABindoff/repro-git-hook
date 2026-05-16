@@ -45,15 +45,21 @@ Scans all files for accidental inclusions of secrets before they are immortalize
 
 ## Installation & Usage
 
-1. Copy `auditor.py` into your project (e.g., into a `scripts/` or `tools/` directory).
-2. Create or append to your `.git/hooks/pre-commit` file:
+Since `repro-git-hook` is packaged as a standard Python tool, the easiest way to use it is with `uvx` (or `pipx`), which downloads and runs it in an isolated ephemeral environment.
+
+1. Install `uv` if you haven't already:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+2. Create or append to your project's `.git/hooks/pre-commit` file:
 
 ```bash
 #!/bin/bash
 # .git/hooks/pre-commit
 
-# Run the auditor script
-python "scripts/auditor.py" pre-commit
+# Run the auditor securely and ephemerally from GitHub
+uvx --from git+https://github.com/ABindoff/repro-git-hook repro-hook pre-commit
 ```
 
 3. Make the hook executable (Unix/macOS):

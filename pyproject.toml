@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "repro-git-hook"
+version = "0.1.0"
+description = "Out-of-band audit logger for AI-assisted workflows"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+repro-hook = "repro_hook.cli:main"

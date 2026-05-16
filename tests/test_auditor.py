@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 import sys
 
-# Add parent directory to path so we can import auditor
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from auditor import check_secrets, check_python_file, check_r_file, check_env_pinned
+# Add src directory to path so we can import repro_hook
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from repro_hook.cli import check_secrets, check_python_file, check_r_file, check_env_pinned
 
 class TestAuditor(unittest.TestCase):
 
