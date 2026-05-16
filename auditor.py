@@ -149,7 +149,7 @@ def lint_directory(directory):
 
 def get_latest_antigravity_log():
     """Finds the most recent Antigravity conversation log."""
-    app_data = Path(os.environ.get("USERPROFILE", "C:\\Users\\bindoffa")) / ".gemini" / "antigravity" / "brain"
+    app_data = Path.home() / ".gemini" / "antigravity" / "brain"
     if not app_data.exists():
         return "No recent AI interactions found."
         
