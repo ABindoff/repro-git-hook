@@ -31,50 +31,41 @@ def get_env_state(repo_root="."):
     except Exception:
         env_state["pip_freeze"] = []
         
-    # Detect R Environment
+    # Language Heuristics Engine
+    # Maps Language Name -> (Trigger Patterns, {Label: Command})
+    heuristics = {
+        "Node.js": (["package.json", "*.js", "*.ts"], {"Node Version": ["node", "-v"], "NPM Version": ["npm", "-v"]}),
+        "Go": (["go.mod", "*.go"], {"Go Version": ["go", "version"]}),
+        "Rust": (["Cargo.toml", "*.rs"], {"Rustc Version": ["rustc", "--version"], "Cargo Version": ["cargo", "--version"]}),
+        "C/C++": (["CMakeLists.txt", "*.cpp", "*.c"], {"CMake Version": ["cmake", "--version"], "G++ Version": ["g++", "--version"], "Clang++ Version": ["clang++", "--version"]}),
+        "Haskell": (["*.cabal", "stack.yaml", "*.hs"], {"GHC Version": ["ghc", "--version"]}),
+        "Lisp": (["*.lisp", "*.cl"], {"SBCL Version": ["sbcl", "--version"]}),
+    }
+    
     root_path = Path(repo_root)
-    # Check for R files in root or immediately obvious signs of an R project
+    
+    # Generic Heuristic Runner
+    for lang, (patterns, commands) in heuristics.items():
+        if any(list(root_path.glob(f"**/{p}")) for p in patterns) or any(list(root_path.glob(p)) for p in patterns):
+            for label, cmd in commands.items():
+                try:
+                    out = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode("utf-8").splitlines()[0].strip()
+                    env_state[label] = out
+                except Exception:
+                    pass
+
+    # Special Complex Cases (R)
     if list(root_path.glob("*.Rproj")) or list(root_path.glob("*.R")) or list(root_path.glob("*.Rmd")):
         try:
-            r_version = subprocess.check_output(["Rscript", "--version"], stderr=subprocess.STDOUT).decode("utf-8").strip()
-            env_state["R_version"] = r_version
-        except Exception:
-            env_state["R_version"] = "Rscript not found in PATH"
-            
-        try:
-            r_session = subprocess.check_output(["Rscript", "-e", "sessionInfo()"], cwd=repo_root, stderr=subprocess.DEVNULL).decode("utf-8").strip()
-            env_state["R_session_info"] = r_session
-        except Exception:
-            env_state["R_session_info"] = "Could not capture sessionInfo()"
-            
-        if (root_path / "renv.lock").exists():
-            env_state["R_env_manager"] = "renv.lock present"
-        else:
-            env_state["R_env_manager"] = "No renv.lock found"
-            
-    # Detect Rust Environment
-    if (root_path / "Cargo.toml").exists() or list(root_path.glob("**/*.rs")):
-        try:
-            env_state["Rust_version"] = subprocess.check_output(["rustc", "--version"], stderr=subprocess.STDOUT).decode("utf-8").strip()
-            env_state["Cargo_version"] = subprocess.check_output(["cargo", "--version"], stderr=subprocess.STDOUT).decode("utf-8").strip()
-        except Exception:
-            env_state["Rust_version"] = "rustc/cargo not found in PATH"
-            
-    # Detect C/C++ Environment
-    if (root_path / "CMakeLists.txt").exists() or list(root_path.glob("**/*.cpp")) or list(root_path.glob("**/*.c")):
-        try:
-            env_state["CMake_version"] = subprocess.check_output(["cmake", "--version"], stderr=subprocess.STDOUT).decode("utf-8").splitlines()[0]
+            env_state["R Version"] = subprocess.check_output(["Rscript", "--version"], stderr=subprocess.STDOUT).decode("utf-8").strip()
         except Exception:
             pass
         try:
-            # Try gcc
-            env_state["C++_compiler"] = subprocess.check_output(["g++", "--version"], stderr=subprocess.STDOUT).decode("utf-8").splitlines()[0]
+            env_state["R_session_info"] = subprocess.check_output(["Rscript", "-e", "sessionInfo()"], cwd=repo_root, stderr=subprocess.DEVNULL).decode("utf-8").strip()
         except Exception:
-            try:
-                # Fallback to clang
-                env_state["C++_compiler"] = subprocess.check_output(["clang++", "--version"], stderr=subprocess.STDOUT).decode("utf-8").splitlines()[0]
-            except Exception:
-                pass
+            pass
+        if (root_path / "renv.lock").exists():
+            env_state["R Environment"] = "renv.lock present"
             
     return env_state
 
@@ -290,30 +281,22 @@ def run_pre_commit(target_dir=None):
         f.write(f"- OS: {env_state['os']}\n")
         
         has_specific_env = False
-        if "R_version" in env_state:
-            has_specific_env = True
-            f.write(f"- R Version: {env_state['R_version']}\n")
-            f.write(f"- R Environment: {env_state.get('R_env_manager', 'Unknown')}\n")
-            f.write("\n<details><summary>R sessionInfo()</summary>\n\n```text\n")
-            f.write(env_state.get('R_session_info', ''))
-            f.write("\n```\n</details>\n")
-            
-        if "Rust_version" in env_state:
-            has_specific_env = True
-            f.write(f"- Rust Version: {env_state['Rust_version']}\n")
-            if "Cargo_version" in env_state:
-                f.write(f"- Cargo Version: {env_state['Cargo_version']}\n")
+        # Write dynamically discovered environments
+        for key, value in env_state.items():
+            if key not in ["timestamp", "os", "git_commit", "pip_freeze", "R_session_info", "python_version"]:
+                f.write(f"- {key}: {value}\n")
+                has_specific_env = True
                 
-        if "C++_compiler" in env_state or "CMake_version" in env_state:
+        # Handle R sessionInfo block if present
+        if "R_session_info" in env_state:
             has_specific_env = True
-            if "C++_compiler" in env_state:
-                f.write(f"- C++ Compiler: {env_state['C++_compiler']}\n")
-            if "CMake_version" in env_state:
-                f.write(f"- CMake Version: {env_state['CMake_version']}\n")
+            f.write("\n<details><summary>R sessionInfo()</summary>\n\n```text\n")
+            f.write(env_state['R_session_info'])
+            f.write("\n```\n</details>\n")
                 
         if not has_specific_env:
             # Fallback to python if no other primary languages are detected
-            f.write(f"- Python: {env_state.get('python_version', 'Unknown')}\n")
+            f.write(f"- Python Version: {env_state.get('python_version', 'Unknown')}\n")
         
     print(f"Audit log generated at {report_path}")
     
