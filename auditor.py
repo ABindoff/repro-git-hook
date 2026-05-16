@@ -65,7 +65,7 @@ def check_env_pinned(directory):
             for line_num, line in enumerate(f, 1):
                 line = line.strip()
                 if line and not line.startswith("#"):
-                    if "==" not in line and ">=" not in line and "~=" not in line:
+                    if "==" not in line:
                         issues.append({"rule": "env-pinned", "severity": "warn", "file": "requirements.txt", "line": line_num, "msg": f"Unpinned dependency: {line}"})
     return issues
 
@@ -83,17 +83,26 @@ def check_python_file(filepath):
         has_random_seed = False
         
         for node in ast.walk(tree):
-            if isinstance(node, ast.Import) or isinstance(node.ImportFrom):
-                # Simplified check for demo
-                pass
+            if isinstance(node, ast.Import):
+                for name in node.names:
+                    if name.name in ["random", "numpy", "torch"]: has_random_import = True
+            elif isinstance(node, ast.ImportFrom):
+                if node.module in ["numpy", "torch", "random"]: has_random_import = True
+                    
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Attribute):
+                    if node.func.attr in ["seed", "manual_seed"]: has_random_seed = True
                         
             # Check hardcoded paths in strings
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 val = node.value
-                if re.match(r"^(/usr|/home|/var|/etc|C:\\|D:\\)", val, re.IGNORECASE):
+                if re.match(r"^(/usr|/home|/var|/etc|[a-zA-Z]:\\|[a-zA-Z]:/)", val, re.IGNORECASE):
                     issues.append({"rule": "no-hardcoded-paths", "severity": "error", "file": str(filepath), "line": getattr(node, 'lineno', 0), "msg": f"Hardcoded absolute path found: {val[:30]}..."})
                 if re.search(r"data/raw.*", val, re.IGNORECASE):
                     issues.append({"rule": "no-inplace-data-mutation", "severity": "warn", "file": str(filepath), "line": getattr(node, 'lineno', 0), "msg": f"Reference to raw data directory found: {val[:30]}..."})
+                    
+        if has_random_import and not has_random_seed:
+            issues.append({"rule": "random-seed", "severity": "error", "file": str(filepath), "line": 0, "msg": "RNG module imported but no seed set in scope."})
     except Exception:
         pass
     return issues
