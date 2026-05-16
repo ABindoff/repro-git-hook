@@ -145,29 +145,38 @@ def lint_directory(directory):
                 
     return all_issues
 
-# --- Antigravity Integration ---
+# --- AI Agent Integration ---
 
-def get_latest_antigravity_log():
-    """Finds the most recent Antigravity conversation log."""
-    app_data = Path.home() / ".gemini" / "antigravity" / "brain"
-    if not app_data.exists():
-        return "No recent AI interactions found."
-        
-    # Find most recently modified conversation directory
-    dirs = [d for d in app_data.iterdir() if d.is_dir() and (d / ".system_generated" / "logs" / "overview.txt").exists()]
-    if not dirs:
-        return "No recent AI logs found."
-        
-    latest_dir = max(dirs, key=lambda d: d.stat().st_mtime)
-    log_file = latest_dir / ".system_generated" / "logs" / "overview.txt"
+def get_latest_ai_log(repo_root):
+    """Attempts to find the most recent AI conversation log from known open-format agents."""
     
-    try:
-        with open(log_file, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            # Return last 30 lines as a proxy for the latest exchange
-            return "".join(lines[-30:])
-    except Exception:
-        return "Failed to parse recent AI log."
+    # 1. Check Antigravity
+    ag_app_data = Path.home() / ".gemini" / "antigravity" / "brain"
+    if ag_app_data.exists():
+        dirs = [d for d in ag_app_data.iterdir() if d.is_dir() and (d / ".system_generated" / "logs" / "overview.txt").exists()]
+        if dirs:
+            latest_dir = max(dirs, key=lambda d: d.stat().st_mtime)
+            log_file = latest_dir / ".system_generated" / "logs" / "overview.txt"
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    return "".join(f.readlines()[-30:]), True
+            except Exception:
+                pass
+                
+    # 2. Add future parsers here (e.g., Cline JSON logs)
+    
+    # 3. Fallback Agent Prompt
+    fallback_msg = (
+        "> [!NOTE]\n"
+        "> **Transcript Unavailable:** No local open-format AI transcripts (e.g., Antigravity, Cline) were found for this commit.\n"
+        "> If the user is using Cursor, Copilot, or RStudio, their AI logs are likely stored in proprietary or encrypted databases.\n"
+        "> \n"
+        "> 🤖 **To the AI Agent reading this log in the future:**\n"
+        "> Please ask the user to briefly summarize the reasoning behind this commit so you can append it here. "
+        "Alternatively, if you know how to extract the chat history from the user's current IDE, you are encouraged to write a Python parser "
+        "and add it to the `get_latest_ai_log()` function in `auditor.py`!"
+    )
+    return fallback_msg, False
 
 def run_pre_commit(target_dir=None):
     """Executes the pre-commit workflow: linting, gathering logs, and writing to .repro/"""
@@ -191,7 +200,7 @@ def run_pre_commit(target_dir=None):
     print(f"Scanning directory: {repo_root}")
     issues = lint_directory(repo_root)
     env_state = get_env_state()
-    ai_log_snippet = get_latest_antigravity_log()
+    ai_log_snippet, is_raw_text = get_latest_ai_log(repo_root)
     
     # Generate the Markdown Report
     repro_dir = Path(repo_root) / ".repro" / "logs"
@@ -216,9 +225,12 @@ def run_pre_commit(target_dir=None):
         f.write("\n")
         
         f.write("## Recent AI Interaction Context\n")
-        f.write("```text\n")
-        f.write(ai_log_snippet)
-        f.write("\n```\n\n")
+        if is_raw_text:
+            f.write("```text\n")
+            f.write(ai_log_snippet)
+            f.write("\n```\n\n")
+        else:
+            f.write(ai_log_snippet + "\n\n")
         
         f.write("## Environment Snapshot\n")
         f.write(f"- OS: {env_state['os']}\n")
