@@ -45,29 +45,19 @@ Scans all files for accidental inclusions of secrets before they are immortalize
 
 ## Installation & Usage
 
-Since `repro-git-hook` is packaged as a standard Python tool, the easiest way to use it is with `uvx` (or `pipx`), which downloads and runs it in an isolated ephemeral environment.
+Because `repro-git-hook` is packaged as a standard Python tool, installation is a single command. 
 
-1. Install `uv` if you haven't already:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-2. Create or append to your project's `.git/hooks/pre-commit` file:
+Open a terminal inside any Git repository and run:
 
 ```bash
-#!/bin/bash
-# .git/hooks/pre-commit
-
-# Run the auditor securely and ephemerally from GitHub
-uvx --from git+https://github.com/ABindoff/repro-git-hook repro-hook pre-commit
+uvx --from git+https://github.com/ABindoff/repro-git-hook repro-hook install
 ```
 
-3. Make the hook executable (Unix/macOS):
-```bash
-chmod +x .git/hooks/pre-commit
-```
+*(This command uses [uv](https://docs.astral.sh/uv/) to ephemerally download the tool and automatically configure your `.git/hooks/pre-commit` file. If you don't have `uv` installed, you can get it via `curl -LsSf https://astral.sh/uv/install.sh | sh` or `pip install uv`)*
 
-Now, every time you run `git commit`, an audit log will be automatically generated in `.repro/logs/` and seamlessly included in your commit!
+That's it! 
+
+Now, every time you run `git commit`, an audit log will be automatically generated in `.repro/logs/` and seamlessly included in your commit without you ever having to think about it again.
 
 ---
 

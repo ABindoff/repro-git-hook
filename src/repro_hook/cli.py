@@ -255,6 +255,34 @@ def run_pre_commit(target_dir=None):
         except Exception as e:
             print(f"Warning: Could not automatically git add .repro/: {e}")
 
+def install_hook():
+    """Installs the pre-commit hook into the current git repository."""
+    try:
+        repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], stderr=subprocess.DEVNULL).decode("utf-8").strip()
+    except Exception:
+        print("Error: Not inside a git repository. Please run this command from the root of your project.")
+        sys.exit(1)
+        
+    hook_dir = Path(repo_root) / ".git" / "hooks"
+    hook_dir.mkdir(parents=True, exist_ok=True)
+    
+    hook_file = hook_dir / "pre-commit"
+    hook_content = (
+        "#!/bin/bash\n"
+        "# .git/hooks/pre-commit\n\n"
+        "# Run the auditor securely and ephemerally from GitHub\n"
+        "uvx --from git+https://github.com/ABindoff/repro-git-hook repro-hook pre-commit\n"
+    )
+    
+    with open(hook_file, "w", encoding="utf-8") as f:
+        f.write(hook_content)
+        
+    # Make executable on Unix
+    if os.name == "posix":
+        os.chmod(hook_file, 0o755)
+        
+    print(f"✅ Successfully installed repro-git-hook into {hook_file}")
+
 def main():
     parser = argparse.ArgumentParser(description="AI Workflow Auditor")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -265,6 +293,8 @@ def main():
     precommit_parser = subparsers.add_parser("pre-commit")
     precommit_parser.add_argument("directory", nargs="?", default=None)
     
+    install_parser = subparsers.add_parser("install", help="Installs the pre-commit hook into the current Git repository")
+    
     args = parser.parse_args()
     
     if args.command == "lint":
@@ -273,6 +303,8 @@ def main():
             print(f"[{issue['severity'].upper()}] {issue['rule']}: {issue['msg']} ({issue['file']}:{issue['line']})")
     elif args.command == "pre-commit":
         run_pre_commit(args.directory)
+    elif args.command == "install":
+        install_hook()
 
 if __name__ == "__main__":
     main()
