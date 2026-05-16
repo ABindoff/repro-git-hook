@@ -12,3 +12,6 @@ dependencies = []
 
 [project.scripts]
 repro-hook = "repro_hook.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/repro_hook"]
