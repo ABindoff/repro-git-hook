@@ -12,7 +12,7 @@ For work that demands rigorous reproducibility (e.g., peer-reviewed science, fin
 
 ## The Solution
 
-`repro-git-hook` is a zero-friction tool that automatically generates a human-readable, git-tracked audit trail of your AI workflows at the exact moment you commit your code.
+`repro-git-hook` is a zero-friction tool that automatically generates a human-readable audit trail of your AI workflows at the exact moment you commit your code.
 
 By hooking directly into the Git lifecycle via `pre-commit`, it bridges the gap between your code and your AI assistant. It captures environment snapshots, logs the conversation transcript, and statically checks your code for common reproducibility pitfalls—without ever interrupting your flow.
 
@@ -57,7 +57,7 @@ uvx --from git+https://github.com/ABindoff/repro-git-hook repro-hook install
 
 That's it! 
 
-Now, every time you run `git commit`, an audit log will be automatically generated in `.repro/logs/` and seamlessly included in your commit without you ever having to think about it again.
+Now, every time you run `git commit`, an audit log will be automatically generated in `.repro/logs/` and seamlessly included in your commit without you ever having to think about it again. *Note:* by default `.repro/` will be added to your .gitignore, remove if you wish to track each log with git.
 
 ---
 
